@@ -43,7 +43,7 @@
             '|(Kindle/(1\\.0|2\\.[05]|3\\.0))'
     ).test(window.navigator.userAgent) ||
         // Feature detection for all other devices:
-        $('<input type="file">').prop('disabled'));
+        $('<input type="file"/>').prop('disabled'));
 
     // The FileReader API is not actually used, but works as feature detection,
     // as some Safari versions (5?) support XHR file uploads via the FormData API,
@@ -453,7 +453,7 @@
             }
             if (!multipart || options.blob || !this._isInstanceOf('File', file)) {
                 options.headers['Content-Disposition'] = 'attachment; filename="' +
-                    encodeURI(file.name) + '"';
+                    encodeURI(file.uploadName || file.name) + '"';
             }
             if (!multipart) {
                 options.contentType = file.type || 'application/octet-stream';
@@ -489,7 +489,11 @@
                         });
                     }
                     if (options.blob) {
-                        formData.append(paramName, options.blob, file.name);
+                        formData.append(
+                            paramName,
+                            options.blob,
+                            file.uploadName || file.name
+                        );
                     } else {
                         $.each(options.files, function (index, file) {
                             // This check allows the tests to run with
@@ -730,8 +734,8 @@
                 promise = dfd.promise(),
                 jqXHR,
                 upload;
-            if (!(this._isXHRUpload(options) && slice && (ub || mcs < fs)) ||
-                    options.data) {
+            if (!(this._isXHRUpload(options) && slice && (ub || ($.type(mcs) === 'function' ? mcs(options) : mcs) < fs)) ||
+                options.data) {
                 return false;
             }
             if (testOnly) {
@@ -753,7 +757,7 @@
                 o.blob = slice.call(
                     file,
                     ub,
-                    ub + mcs,
+                    ub + ($.type(mcs) === 'function' ? mcs(o) : mcs),
                     file.type
                 );
                 // Store the current chunk size, as the blob itself
@@ -765,7 +769,12 @@
                 // Process the upload data (the blob and potential form data):
                 that._initXHRData(o);
                 // Add progress listeners for this chunk upload:
-                that._initProgressListener(o);
+
+                // clone without the actual data to allow edge to garbage collect the xhr
+				var clone = Object.assign({}, o);
+				delete clone.data;
+
+                that._initProgressListener(clone);
                 jqXHR = ((that._trigger('chunksend', null, o) !== false && $.ajax(o)) ||
                         that._getXHRPromise(false, o.context))
                     .done(function (result, textStatus, jqXHR) {
@@ -1126,7 +1135,7 @@
                 dirReader = entry.createReader();
                 readEntries();
             } else {
-                // Return an empy list for file system items
+                // Return an empty list for file system items
                 // other than files or directories:
                 dfd.resolve([]);
             }
